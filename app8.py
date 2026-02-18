@@ -30,61 +30,6 @@ if not API_KEY:
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel('gemini-2.5-flash')
 
-TEMPLATES_DIR = "templates"
-LIMITE_CONTADOR =13   # <-- límite máximo antes de enviar alerta
-
-# ==============================================================
-# CONFIGURACIÓN JSONBIN
-# ==============================================================
-
-BASE_URL = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
-HEADERS = {
-    "X-Master-Key": JSONBIN_API_KEY or "",
-    "Content-Type": "application/json"
-}
-
-def obtener_contador():
-    try:
-        response = requests.get(f"{BASE_URL}/latest", headers=HEADERS)
-        response.raise_for_status()
-        record = response.json().get("record", {})
-        return record.get("contador_actas", 0)
-    except Exception as e:
-        st.warning(f"⚠️ No se pudo obtener el contador global: {e}")
-        return 0
-
-def actualizar_contador(nuevo_valor):
-    try:
-        response = requests.put(BASE_URL, headers=HEADERS, json={"contador_actas": nuevo_valor})
-        response.raise_for_status()
-    except Exception as e:
-        st.error(f"⚠️ No se pudo guardar el contador en JSONBin: {e}")
-
-# ==============================================================
-# ALERTA POR CORREO
-# ==============================================================
-
-def enviar_alerta_correo(mensaje):
-    user = os.getenv("EMAIL_USER")
-    password = os.getenv("EMAIL_PASS")
-    destino = os.getenv("DESTINO_ALERTA")
-
-    if not all([user, password, destino]):
-        st.warning("⚠️ No se configuró correctamente el envío de correo (revisa .env o secretos).")
-        return
-
-    msg = MIMEText(mensaje)
-    msg["Subject"] = "⚠️ Alerta: Límite de ACTAS alcanzado"
-    msg["From"] = user
-    msg["To"] = destino
-
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(user, password)
-            server.send_message(msg)
-        st.info("📨 Se envió una alerta por correo.")
-    except Exception as e:
-        st.error(f"Error al enviar correo: {e}")
 
 # ==============================================================
 # CSS PERSONALIZADO
@@ -382,5 +327,6 @@ st.markdown("""
 Se recomienda validar cuidadosamente toda la información generada antes de su uso, distribución o almacenamiento.<br>
 </div>
 """, unsafe_allow_html=True)
+
 
 st.markdown("<div class='footer'>© 2025 Generador de Actas • Streamlit + Gemini + JSONBin</div>", unsafe_allow_html=True)
