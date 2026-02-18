@@ -64,27 +64,27 @@ def actualizar_contador(nuevo_valor):
 # ALERTA POR CORREO
 # ==============================================================
 
-def enviar_alerta_correo(mensaje):
-    user = os.getenv("EMAIL_USER")
-    password = os.getenv("EMAIL_PASS")
-    destino = os.getenv("DESTINO_ALERTA")
+#def enviar_alerta_correo(mensaje):
+ #   user = os.getenv("EMAIL_USER")
+  #  password = os.getenv("EMAIL_PASS")
+   # destino = os.getenv("DESTINO_ALERTA")
 
-    if not all([user, password, destino]):
-        st.warning("⚠️ No se configuró correctamente el envío de correo (revisa .env o secretos).")
-        return
+    #if not all([user, password, destino]):
+     #   st.warning("⚠️ No se configuró correctamente el envío de correo (revisa .env o secretos).")
+      #  return
 
-    msg = MIMEText(mensaje)
-    msg["Subject"] = "⚠️ Alerta: Límite de ACTAS alcanzado"
-    msg["From"] = user
-    msg["To"] = destino
+    #msg = MIMEText(mensaje)
+    #msg["Subject"] = "⚠️ Alerta: Límite de ACTAS alcanzado"
+    #msg["From"] = user
+    #msg["To"] = destino
 
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(user, password)
-            server.send_message(msg)
-        st.info("📨 Se envió una alerta por correo.")
-    except Exception as e:
-        st.error(f"Error al enviar correo: {e}")
+    #try:
+     #   with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+      #      server.login(user, password)
+       #     server.send_message(msg)
+        #st.info("📨 Se envió una alerta por correo.")
+   # except Exception as e:
+    #    st.error(f"Error al enviar correo: {e}")
 
 # ==============================================================
 # CSS PERSONALIZADO
@@ -295,9 +295,9 @@ else:
 contador_actual = obtener_contador()
 st.info(f"🧮 Contador global de actas: **{contador_actual}**")
 
-if contador_actual >= LIMITE_CONTADOR:
-    st.warning(f"⚠️ Se alcanzó el límite de {LIMITE_CONTADOR} actas. Es momento de reiniciar el contador.")
-    enviar_alerta_correo(f"Se ha alcanzado el límite de {contador_actual} actas. Debes reiniciar el API en la app de actas.")
+#if contador_actual >= LIMITE_CONTADOR:
+ #   st.warning(f"⚠️ Se alcanzó el límite de {LIMITE_CONTADOR} actas. Es momento de reiniciar el contador.")
+  #  enviar_alerta_correo(f"Se ha alcanzado el límite de {contador_actual} actas. Debes reiniciar el API en la app de actas.")
 
 if "transcripcion_area" not in st.session_state:
     st.session_state["transcripcion_area"] = ""
@@ -355,8 +355,8 @@ if generar:
             actualizar_contador(nuevo_valor)
             st.success(f"🎉 Acta número {nuevo_valor} generada correctamente.")
 
-            if nuevo_valor >= LIMITE_CONTADOR:
-                enviar_alerta_correo(f"Se ha alcanzado el límite de {nuevo_valor} actas. Debes reiniciar el API en la app.")
+            #f nuevo_valor >= LIMITE_CONTADOR:
+             #   enviar_alerta_correo(f"Se ha alcanzado el límite de {nuevo_valor} actas. Debes reiniciar el API en la app.")
 
             with open(output_path, "rb") as f:
                 st.download_button(
