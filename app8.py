@@ -291,13 +291,7 @@ if generar:
         st.success("✅ Datos extraídos correctamente. Generando documento Word...")
         output_path = create_word_document(template_path, extracted_data)
 
-        if output_path:
-            nuevo_valor = contador_actual + 1
-            actualizar_contador(nuevo_valor)
-            st.success(f"🎉 Acta número {nuevo_valor} generada correctamente.")
-
-            if nuevo_valor >= LIMITE_CONTADOR:
-                enviar_alerta_correo(f"Se ha alcanzado el límite de {nuevo_valor} actas. Debes reiniciar el API en la app.")
+    
 
             with open(output_path, "rb") as f:
                 st.download_button(
@@ -326,4 +320,5 @@ Se recomienda validar cuidadosamente toda la información generada antes de su u
 
 
 st.markdown("<div class='footer'>© 2025 Generador de Actas • Streamlit + Gemini + JSONBin</div>", unsafe_allow_html=True)
+
 
