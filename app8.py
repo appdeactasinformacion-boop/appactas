@@ -237,12 +237,8 @@ if os.path.exists(logo_path):
 else:
     st.title("📝 Generador de Actas")
 
-contador_actual = obtener_contador()
-st.info(f"🧮 Contador global de actas: **{contador_actual}**")
 
-if contador_actual >= LIMITE_CONTADOR:
-    st.warning(f"⚠️ Se alcanzó el límite de {LIMITE_CONTADOR} actas. Es momento de reiniciar el contador.")
-    enviar_alerta_correo(f"Se ha alcanzado el límite de {contador_actual} actas. Debes reiniciar el API en la app de actas.")
+
 
 if "transcripcion_area" not in st.session_state:
     st.session_state["transcripcion_area"] = ""
@@ -330,3 +326,4 @@ Se recomienda validar cuidadosamente toda la información generada antes de su u
 
 
 st.markdown("<div class='footer'>© 2025 Generador de Actas • Streamlit + Gemini + JSONBin</div>", unsafe_allow_html=True)
+
