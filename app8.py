@@ -30,6 +30,61 @@ if not API_KEY:
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel('gemini-2.5-flash')
 
+TEMPLATES_DIR = "templates"
+LIMITE_CONTADOR =13   # <-- límite máximo antes de enviar alerta
+
+# ==============================================================
+# CONFIGURACIÓN JSONBIN
+# ==============================================================
+
+BASE_URL = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
+HEADERS = {
+    "X-Master-Key": JSONBIN_API_KEY or "",
+    "Content-Type": "application/json"
+}
+
+def obtener_contador():
+    try:
+        response = requests.get(f"{BASE_URL}/latest", headers=HEADERS)
+        response.raise_for_status()
+        record = response.json().get("record", {})
+        return record.get("contador_actas", 0)
+    except Exception as e:
+        st.warning(f"⚠️ No se pudo obtener el contador global: {e}")
+        return 0
+
+def actualizar_contador(nuevo_valor):
+    try:
+        response = requests.put(BASE_URL, headers=HEADERS, json={"contador_actas": nuevo_valor})
+        response.raise_for_status()
+    except Exception as e:
+        st.error(f"⚠️ No se pudo guardar el contador en JSONBin: {e}")
+
+# ==============================================================
+# ALERTA POR CORREO
+# ==============================================================
+
+def enviar_alerta_correo(mensaje):
+    user = os.getenv("EMAIL_USER")
+    password = os.getenv("EMAIL_PASS")
+    destino = os.getenv("DESTINO_ALERTA")
+
+    if not all([user, password, destino]):
+        st.warning("⚠️ No se configuró correctamente el envío de correo (revisa .env o secretos).")
+        return
+
+    msg = MIMEText(mensaje)
+    msg["Subject"] = "⚠️ Alerta: Límite de ACTAS alcanzado"
+    msg["From"] = user
+    msg["To"] = destino
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(user, password)
+            server.send_message(msg)
+        st.info("📨 Se envió una alerta por correo.")
+    except Exception as e:
+        st.error(f"Error al enviar correo: {e}")
 
 # ==============================================================
 # CSS PERSONALIZADO
@@ -237,8 +292,12 @@ if os.path.exists(logo_path):
 else:
     st.title("📝 Generador de Actas")
 
+contador_actual = obtener_contador()
+st.info(f"🧮 Contador global de actas: **{contador_actual}**")
 
-
+if contador_actual >= LIMITE_CONTADOR:
+    st.warning(f"⚠️ Se alcanzó el límite de {LIMITE_CONTADOR} actas. Es momento de reiniciar el contador.")
+    enviar_alerta_correo(f"Se ha alcanzado el límite de {contador_actual} actas. Debes reiniciar el API en la app de actas.")
 
 if "transcripcion_area" not in st.session_state:
     st.session_state["transcripcion_area"] = ""
@@ -291,8 +350,20 @@ if generar:
         st.success("✅ Datos extraídos correctamente. Generando documento Word...")
         output_path = create_word_document(template_path, extracted_data)
 
-    
+        if output_path:
+            nuevo_valor = contador_actual + 1
+            actualizar_contador(nuevo_valor)
+            st.success(f"🎉 Acta número {nuevo_valor} generada correctamente.")
 
+            if nuevo_valor >= LIMITE_CONTADOR:
+                enviar_alerta_correo(f"Se ha alcanzado el límite de {nuevo_valor} actas. Debes reiniciar el API en la app.")
+
+            with open(output_path, "rb") as f:
+                st.download_button(
+                    "📥 Descargar Acta Generada",
+                    data=f.read(),
+                    file_name=f"acta_{nuevo_valor}.docx"
+                )
     else:
         st.error("No se pudo extraer información del texto.")
 
@@ -312,8 +383,4 @@ Se recomienda validar cuidadosamente toda la información generada antes de su u
 </div>
 """, unsafe_allow_html=True)
 
-
 st.markdown("<div class='footer'>© 2025 Generador de Actas • Streamlit + Gemini + JSONBin</div>", unsafe_allow_html=True)
-
-
-
