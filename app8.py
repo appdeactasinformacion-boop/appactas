@@ -293,12 +293,6 @@ if generar:
 
     
 
-            with open(output_path, "rb") as f:
-                st.download_button(
-                    "📥 Descargar Acta Generada",
-                    data=f.read(),
-                    file_name=f"acta_{nuevo_valor}.docx"
-                )
     else:
         st.error("No se pudo extraer información del texto.")
 
@@ -320,5 +314,6 @@ Se recomienda validar cuidadosamente toda la información generada antes de su u
 
 
 st.markdown("<div class='footer'>© 2025 Generador de Actas • Streamlit + Gemini + JSONBin</div>", unsafe_allow_html=True)
+
 
 
