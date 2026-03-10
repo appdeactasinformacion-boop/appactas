@@ -10,7 +10,6 @@ import base64
 import requests
 import smtplib
 from email.mime.text import MIMEText
-from pathlib import Path
 
 # ==============================================================
 # CONFIGURACIÓN INICIAL
@@ -20,10 +19,9 @@ st.set_page_config(page_title="Generador de Actas", page_icon="📝", layout="wi
 
 load_dotenv()
 
-# Prioridad: secrets de Streamlit Cloud > variables de entorno
-API_KEY = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
-JSONBIN_API_KEY = st.secrets.get("JSONBIN_API_KEY") or os.getenv("JSONBIN_API_KEY")
-JSONBIN_BIN_ID = st.secrets.get("JSONBIN_BIN_ID") or os.getenv("JSONBIN_BIN_ID")
+API_KEY = os.getenv("GOOGLE_API_KEY")
+JSONBIN_API_KEY = os.getenv("JSONBIN_API_KEY")
+JSONBIN_BIN_ID = os.getenv("JSONBIN_BIN_ID")
 
 if not API_KEY:
     st.error("No se encontró GOOGLE_API_KEY en el archivo .env o en los secretos de Streamlit.")
@@ -32,8 +30,8 @@ if not API_KEY:
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel('gemini-2.5-flash')
 
-TEMPLATES_DIR = Path("templates")
-LIMITE_CONTADOR = 13   # <-- límite máximo antes de enviar alerta
+TEMPLATES_DIR = "templates"
+LIMITE_CONTADOR =13   # <-- límite máximo antes de enviar alerta
 
 # ==============================================================
 # CONFIGURACIÓN JSONBIN
@@ -45,10 +43,9 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-@st.cache_data(ttl=60)  # Cachea durante 60 segundos para no sobrecargar JSONBin
 def obtener_contador():
     try:
-        response = requests.get(f"{BASE_URL}/latest", headers=HEADERS, timeout=5)
+        response = requests.get(f"{BASE_URL}/latest", headers=HEADERS)
         response.raise_for_status()
         record = response.json().get("record", {})
         return record.get("contador_actas", 0)
@@ -58,37 +55,36 @@ def obtener_contador():
 
 def actualizar_contador(nuevo_valor):
     try:
-        response = requests.put(BASE_URL, headers=HEADERS, json={"contador_actas": nuevo_valor}, timeout=5)
+        response = requests.put(BASE_URL, headers=HEADERS, json={"contador_actas": nuevo_valor})
         response.raise_for_status()
-        st.cache_data.clear()  # Limpia la caché para que el nuevo valor se refleje
     except Exception as e:
         st.error(f"⚠️ No se pudo guardar el contador en JSONBin: {e}")
 
 # ==============================================================
-# ALERTA POR CORREO (comentada pero mejorada)
+# ALERTA POR CORREO
 # ==============================================================
 
-# def enviar_alerta_correo(mensaje):
-#     user = st.secrets.get("EMAIL_USER") or os.getenv("EMAIL_USER")
-#     password = st.secrets.get("EMAIL_PASS") or os.getenv("EMAIL_PASS")
-#     destino = st.secrets.get("DESTINO_ALERTA") or os.getenv("DESTINO_ALERTA")
-#
-#     if not all([user, password, destino]):
-#         st.warning("⚠️ No se configuró correctamente el envío de correo (revisa .env o secretos).")
-#         return
-#
-#     msg = MIMEText(mensaje)
-#     msg["Subject"] = "⚠️ Alerta: Límite de ACTAS alcanzado"
-#     msg["From"] = user
-#     msg["To"] = destino
-#
-#     try:
-#         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-#             server.login(user, password)
-#             server.send_message(msg)
-#         st.info("📨 Se envió una alerta por correo.")
-#     except Exception as e:
-#         st.error(f"Error al enviar correo: {e}")
+#def enviar_alerta_correo(mensaje):
+ #   user = os.getenv("EMAIL_USER")
+  #  password = os.getenv("EMAIL_PASS")
+   # destino = os.getenv("DESTINO_ALERTA")
+
+    #if not all([user, password, destino]):
+     #   st.warning("⚠️ No se configuró correctamente el envío de correo (revisa .env o secretos).")
+      #  return
+
+    #msg = MIMEText(mensaje)
+    #msg["Subject"] = "⚠️ Alerta: Límite de ACTAS alcanzado"
+    #msg["From"] = user
+    #msg["To"] = destino
+
+    #try:
+     #   with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+      #      server.login(user, password)
+       #     server.send_message(msg)
+        #st.info("📨 Se envió una alerta por correo.")
+   # except Exception as e:
+    #    st.error(f"Error al enviar correo: {e}")
 
 # ==============================================================
 # CSS PERSONALIZADO
@@ -151,7 +147,6 @@ st.markdown("""
 # FUNCIONES AUXILIARES
 # ==============================================================
 
-@st.cache_data
 def get_fields_from_template(template_path):
     import docx
     doc = docx.Document(template_path)
@@ -167,13 +162,13 @@ def get_fields_from_template(template_path):
     return list(found_fields)
 
 def normalizar_listas(data):
-    """Asegura que todos los elementos de las listas tengan los campos requeridos, sin modificar las claves."""
     claves = {
         "ASISTENTES_REUNION": ["nombreasistentereu", "cargoasistentereunion"],
         "TEMAS_TRATADOS_N": ["tema", "responsablet"],
         "COMPROMISOS_DE_REUNION": ["compromiso", "resposablen", "fechac", "fechas"],
         "TEMAS_TRATADOS": ["tema", "desarrollo"],
         "COMPROMISOS_R": ["compromiso", "responsable", "fechaejecucion"],
+        "ASISTENTES_REUNION": ["nombreasistentereu", "cargoasistentereunion"],
     }
     for clave, campos in claves.items():
         lista = data.get(clave, [])
@@ -182,10 +177,9 @@ def normalizar_listas(data):
         for item in lista:
             for campo in campos:
                 item.setdefault(campo, "N/A")
-        data[clave] = lista  # Mantenemos la clave original en mayúsculas
-    return data
+        data[clave.lower()] = lista
+        data.pop(clave, None)
 
-@st.cache_data(show_spinner=False)
 def extract_info_with_gemini(text_to_process, fields):
     prompt = f"""
     Analiza el siguiente texto y extrae la información para los siguientes campos. 
@@ -221,7 +215,7 @@ def extract_info_with_gemini(text_to_process, fields):
     - Cada objeto debe tener las claves:
         - tema: extrae el tema tratado, haz que los temas relacionados los en listas en uno solo.
         - responsablet: extrae el nombre completo de la persona encargada del tema a tratar.
-    - {{DESARROLLO_DE_LA_REUNION_Y_CONCLUSIONES}}: A partir de los temas extraídos en TEMAS_TRATADOS (la lista con tema y desarrollo), redacta un texto en el que se describa detalladamente cómo se desarrolló la reunión en relación con cada tema tratado.
+    - {{DESARROLLO_DE_LA_REUNION_Y_CONCLUSIONES}}: A partir de los temas extraídos en TEMAS_TRATADOS_2, redacta un texto en el que se describa detalladamente cómo se desarrolló la reunión en relación con cada tema tratado.
        - Cada tema tratado debe colocarse como subtítulo en negrilla, seguido de su respectivo desarrollo en un párrafo aparte.
        - Finalmente, incluye una conclusión general sobre los puntos abordados en la reunión, manteniendo una estructura clara y organizada, esta no debe llevar el subtitulo.
     -    {{OBJETIVO_DE_LA_REUNION_2}}: extrae el objetivo de la reunión explicado de forma clara, precisa y que no sea extensa.
@@ -248,7 +242,6 @@ def extract_info_with_gemini(text_to_process, fields):
     try:
         response = model.generate_content(prompt)
         json_text = response.text.strip()
-        # Limpiar posibles marcadores de código
         if json_text.startswith("```json"):
             json_text = json_text[len("```json"):].strip()
         if json_text.endswith("```"):
@@ -268,9 +261,7 @@ def extract_info_with_gemini(text_to_process, fields):
 def create_word_document(template_path, data):
     try:
         doc = DocxTemplate(template_path)
-        # Asegurar que las listas tengan todos los campos necesarios
-        data = normalizar_listas(data)
-        # Añadir campos de sesión
+        normalizar_listas(data)
         data["ACTA_ELABORADA_POR"] = st.session_state.get("ACTA_ELABORADA_POR", "N/A")
         data["CARGO_ELA"] = st.session_state.get("CARGO_ELA", "N/A")
         doc.render(data)
@@ -285,8 +276,8 @@ def create_word_document(template_path, data):
 # INTERFAZ PRINCIPAL
 # ==============================================================
 
-logo_path = Path("logo/logo.png")
-if logo_path.exists():
+logo_path = "logo/logo.png"
+if os.path.exists(logo_path):
     with open(logo_path, "rb") as f:
         logo_base64 = base64.b64encode(f.read()).decode("utf-8")
     st.markdown(
@@ -302,38 +293,29 @@ else:
     st.title("📝 Generador de Actas")
 
 contador_actual = obtener_contador()
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("Actas generadas", contador_actual)
-with col2:
-    st.metric("Límite", LIMITE_CONTADOR)
-with col3:
-    restantes = max(0, LIMITE_CONTADOR - contador_actual)
-    st.metric("Restantes", restantes)
+st.info(f"🧮 Contador global de actas: **{contador_actual}**")
 
-# Alerta si se alcanza el límite (comentada pero funcional)
-# if contador_actual >= LIMITE_CONTADOR:
-#     st.warning(f"⚠️ Se alcanzó el límite de {LIMITE_CONTADOR} actas. Es momento de reiniciar el contador.")
-#     if 'alerta_enviada' not in st.session_state:
-#         enviar_alerta_correo(f"Se ha alcanzado el límite de {contador_actual} actas. Debes reiniciar el contador en la app.")
-#         st.session_state['alerta_enviada'] = True
+#if contador_actual >= LIMITE_CONTADOR:
+ #   st.warning(f"⚠️ Se alcanzó el límite de {LIMITE_CONTADOR} actas. Es momento de reiniciar el contador.")
+  #  enviar_alerta_correo(f"Se ha alcanzado el límite de {contador_actual} actas. Debes reiniciar el API en la app de actas.")
 
 if "transcripcion_area" not in st.session_state:
     st.session_state["transcripcion_area"] = ""
+if "clear_text" not in st.session_state:
+    st.session_state["clear_text"] = False
 
-# Verificar existencia de plantillas
-if not TEMPLATES_DIR.exists():
+if not os.path.exists(TEMPLATES_DIR):
     st.error(f"No se encontró el directorio de plantillas: {TEMPLATES_DIR}")
     st.stop()
 
-template_files = [f.name for f in TEMPLATES_DIR.glob("*.docx")]
+template_files = [f for f in os.listdir(TEMPLATES_DIR) if f.endswith(".docx")]
 if not template_files:
     st.error("No hay plantillas disponibles en la carpeta 'templates'.")
     st.stop()
 
 template_docx = st.selectbox("📂 Selecciona una plantilla", template_files)
-template_path = TEMPLATES_DIR / template_docx
-template_fields = get_fields_from_template(str(template_path))
+template_path = os.path.join(TEMPLATES_DIR, template_docx)
+template_fields = get_fields_from_template(template_path)
 
 transcripcion = st.text_area("🗒️ Pega la transcripción de la reunión", height=300, key="transcripcion_area")
 
@@ -348,7 +330,7 @@ with col_gen:
     generar = st.button("📝 Generar Acta")
 with col_clear:
     if st.button("🧹 Limpiar texto"):
-        st.session_state["transcripcion_area"] = ""
+        st.session_state["clear_text"] = True
         st.rerun()
 
 if generar:
@@ -356,21 +338,25 @@ if generar:
         st.warning("⚠️ Debes ingresar la transcripción antes de generar.")
         st.stop()
 
-    with st.spinner("Analizando texto con Gemini... ⏳"):
-        extracted_data = extract_info_with_gemini(transcripcion, template_fields)
+    st.info("Procesando con Gemini... Esto puede tardar unos segundos ⏳")
+    progress_bar = st.progress(0)
+
+    extracted_data = extract_info_with_gemini(transcripcion, template_fields)
+    for i in range(1, 101):
+        time.sleep(0.01)
+        progress_bar.progress(i)
 
     if extracted_data:
         st.success("✅ Datos extraídos correctamente. Generando documento Word...")
-        output_path = create_word_document(str(template_path), extracted_data)
+        output_path = create_word_document(template_path, extracted_data)
 
         if output_path:
             nuevo_valor = contador_actual + 1
             actualizar_contador(nuevo_valor)
             st.success(f"🎉 Acta número {nuevo_valor} generada correctamente.")
 
-            # if nuevo_valor >= LIMITE_CONTADOR and not st.session_state.get('alerta_enviada', False):
-            #     enviar_alerta_correo(f"Se ha alcanzado el límite de {nuevo_valor} actas. Debes reiniciar el contador.")
-            #     st.session_state['alerta_enviada'] = True
+            #f nuevo_valor >= LIMITE_CONTADOR:
+             #   enviar_alerta_correo(f"Se ha alcanzado el límite de {nuevo_valor} actas. Debes reiniciar el API en la app.")
 
             with open(output_path, "rb") as f:
                 st.download_button(
